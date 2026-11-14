@@ -1,0 +1,110 @@
+name: PipelineWatch CI/CD
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write   # required for OIDC role assumption
+  contents: read
+
+env:
+  TF_VAR_openweather_api_key: ${{ secrets.OPENWEATHER_API_KEY }}
+  TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+  AWS_REGION: ap-south-1
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run pytest
+        run: pytest -v
+
+  terraform-plan:
+    name: Terraform plan
+    runs-on: ubuntu-latest
+    needs: test
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform fmt check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: tfsec (IaC security scan)
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: terraform
+          soft_fail: true   # report findings without blocking; set false once triaged
+        # Fails the build on high/critical findings by default - this is
+        # the gate that catches things like a public S3 bucket or an
+        # overly-broad IAM policy before they ever reach AWS.
+
+      - name: Terraform plan
+        run: terraform plan -no-color
+        # NOTE: for a real team you'd post this plan as a PR comment
+        # (e.g. via the `terraform-plan-comment` action) so reviewers see
+        # the diff before approving. Left as a documented next step.
+
+  terraform-apply:
+    name: Terraform apply (main only)
+    runs-on: ubuntu-latest
+    needs: [test, terraform-plan]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    # `environment: production` is what creates the manual approval gate.
+    # Set this up once in GitHub: Settings -> Environments -> New
+    # environment -> name it "production" -> add yourself as a required
+    # reviewer. Every apply to main then pauses here until approved -
+    # this is the real-world equivalent of a prod deploy gate.
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform apply
+        run: terraform apply -auto-approve

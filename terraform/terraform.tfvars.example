@@ -1,0 +1,8 @@
+# Copy this file to terraform.tfvars (gitignored) and fill in real values,
+# OR export as TF_VAR_openweather_api_key etc. so nothing secret is ever
+# written to disk / committed.
+
+openweather_api_key = ""
+alert_email         = ""
+cities              = ""
+anomaly_temp_celsius = 40

@@ -1,0 +1,41 @@
+# Terraform
+terraform/.terraform/
+terraform/build/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+.venv/
+
+# Misc
+.DS_Store
+*.env
+.terrafrom/
+.terraform/
+/.terrform.lock.hcl
+trust.json
+out.json
+.terrafrom/
+.terraform/
+/.terrform.lock.hcl
+trust.json
+out.json
+BUILD_CHECKLIST.md
+.terraform/
+/.terraform.lock.hcl
+trust.json
+out.json
+.terraform/
+/.terraform.lock.hcl
+trust.json
+out.json
+fetcher_test.py
+main.json
+/.main.tf
